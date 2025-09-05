@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-const { Schema } = mongoose;
+import { Schema, model, Types } from "mongoose";
 import { IActivityLog, ActivityAction } from "../types";
 
 const activityLogSchema = new Schema<IActivityLog>(
