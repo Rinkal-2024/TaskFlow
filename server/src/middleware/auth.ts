@@ -1,4 +1,4 @@
-import { Response, NextFunction } from "express";
+import { Response, NextFunction, RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import { AuthenticatedRequest, AppError, UserRole, IUser } from "../types";
 import User from "../models/User";
@@ -11,7 +11,6 @@ export const authenticate = async (
   try {
     let token: string | undefined;
 
-    // Only check for Bearer token in Authorization header
     if (req.headers.authorization?.startsWith("Bearer ")) {
       token = req.headers.authorization.split(" ")[1];
     }
@@ -30,6 +29,11 @@ export const authenticate = async (
         new AppError("Token is valid but user no longer exists.", 401),
       );
     }
+console.log("JWT_SECRET:", process.env.JWT_SECRET);
+console.log(" Authorization Header:", req.headers.authorization);
+console.log(" Token:", token);
+console.log("Looking up userId:", decoded.userId);
+console.log("User found?", user);
 
     req.user = user;
     next();
@@ -44,17 +48,20 @@ export const authenticate = async (
   }
 };
 
-export const requireAdmin = (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  if (!req.user) {
-    throw new AppError("Authentication required.", 401);
+export const requireAdmin: RequestHandler = (req, res, next) => {
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!user) {
+    console.log("User not found on request");
+    return next(new AppError("Authentication required.", 401));
   }
 
-  if (req.user.role !== UserRole.ADMIN) {
-    throw new AppError("Access denied. Admin privileges required.", 403);
+  console.log("User role:", user.role);
+  console.log("UserRole.ADMIN:", UserRole.ADMIN);
+  console.log("Role match?", user.role === UserRole.ADMIN);
+
+  if (user.role !== UserRole.ADMIN) {
+    return next(new AppError("Admin access required.", 403));
   }
 
   next();
@@ -90,7 +97,6 @@ export const optionalAuth = async (
   try {
     let token: string | undefined;
 
-    // Only check for Bearer token in Authorization header
     if (req.headers.authorization?.startsWith("Bearer ")) {
       token = req.headers.authorization.split(" ")[1];
     }

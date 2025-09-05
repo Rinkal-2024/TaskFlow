@@ -168,7 +168,6 @@ export const TaskDetailPage = () => {
             )}
           </div>
 
-          {/* Activity History */}
           {task.activityHistory && task.activityHistory.length > 0 && (
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Activity History</h3>
@@ -224,13 +223,10 @@ export const TaskDetailPage = () => {
           )}
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-6">
-          {/* Task Details */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Details</h3>
             <div className="space-y-4">
-              {/* Assignee */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">
                   <User className="w-4 h-4 inline mr-1" />
@@ -250,7 +246,6 @@ export const TaskDetailPage = () => {
                 )}
               </div>
 
-              {/* Due Date */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">
                   <Calendar className="w-4 h-4 inline mr-1" />
@@ -271,7 +266,6 @@ export const TaskDetailPage = () => {
                 )}
               </div>
 
-              {/* Created By */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">
                   Created By
@@ -286,7 +280,6 @@ export const TaskDetailPage = () => {
                 </div>
               </div>
 
-              {/* Timestamps */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">
                   <Clock className="w-4 h-4 inline mr-1" />
@@ -310,7 +303,6 @@ export const TaskDetailPage = () => {
         </div>
       </div>
 
-      {/* Modals */}
       {showEditModal && (
         <TaskModal
           mode="edit"

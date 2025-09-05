@@ -1,15 +1,16 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose from "mongoose";
+const { Schema } = mongoose;
 import { IActivityLog, ActivityAction } from "../types";
 
 const activityLogSchema = new Schema<IActivityLog>(
   {
     taskId: {
-      type: Schema.Types.ObjectId,
+      type: mongoose.Types.ObjectId,
       ref: "Task",
       required: [true, "Task ID is required"],
     },
     userId: {
-      type: Schema.Types.ObjectId,
+      type: mongoose.Types.ObjectId,
       ref: "User",
       required: [true, "User ID is required"],
     },
@@ -41,12 +42,10 @@ const activityLogSchema = new Schema<IActivityLog>(
   },
 );
 
-// Indexes for efficient querying
 activityLogSchema.index({ taskId: 1, timestamp: -1 });
 activityLogSchema.index({ userId: 1, timestamp: -1 });
 activityLogSchema.index({ timestamp: -1 });
 
-// Static methods
 activityLogSchema.statics.logActivity = function (
   taskId: string,
   userId: string,

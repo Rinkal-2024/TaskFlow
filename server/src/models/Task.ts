@@ -1,4 +1,5 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose from "mongoose";
+const { Schema } = mongoose;
 import { ITask, TaskStatus, TaskPriority } from "../types";
 
 const taskSchema = new Schema<ITask>(
@@ -50,12 +51,12 @@ const taskSchema = new Schema<ITask>(
       },
     },
     assignee: {
-      type: Schema.Types.ObjectId,
+      type: mongoose.Types.ObjectId,
       ref: "User",
       required: [true, "Assignee is required"],
     },
     createdBy: {
-      type: Schema.Types.ObjectId,
+      type: mongoose.Types.ObjectId,
       ref: "User",
       required: [true, "Created by is required"],
     },
@@ -83,11 +84,12 @@ taskSchema.index({ assignee: 1, status: 1 });
 taskSchema.index({ assignee: 1, priority: 1 });
 taskSchema.index({ status: 1, dueDate: 1 });
 
-taskSchema.virtual("isOverdue").get(function (this: any) {
+taskSchema.virtual("isOverdue").get(function (this: ITask) {
   return (
     this.dueDate && this.dueDate < new Date() && this.status !== TaskStatus.DONE
   );
 });
+
 
 taskSchema.statics.findOverdue = function () {
   return this.find({

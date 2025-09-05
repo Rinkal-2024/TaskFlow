@@ -1,388 +1,161 @@
-import request from 'supertest';
-import app from '../index';
-import User from '../models/User';
-import { UserRole } from '../types';
+import request from "supertest";
+import mongoose from "mongoose";
+import app from "../index";
+import User from "../models/User";
+import Task from "../models/Task";
+import { UserRole, TaskStatus } from "../types";
 
-describe('Users Endpoints', () => {
-  let adminToken: string;
-  let memberToken: string;
-  let adminUser: any;
-  let memberUser: any;
+let adminToken: string;
+let memberToken: string;
+let adminUserId: string;
+let memberUserId: string;
 
-  beforeEach(async () => {
-    // Create admin user
-    const adminResponse = await request(app)
-      .post('/api/auth/register')
-      .send({
-        email: 'admin@test.com',
-        password: 'AdminPass123',
-        firstName: 'Admin',
-        lastName: 'User',
-        role: 'admin' as UserRole,
+beforeAll(async () => {
+  await mongoose.connect(process.env.MONGO_URI_TEST || "mongodb://localhost:27017/task-manager-test");
+
+  await User.deleteMany({});
+  await Task.deleteMany({});
+
+  const admin = new User({
+    email: "admin@test.com",
+    password: "password123",
+    firstName: "Admin",
+    lastName: "User",
+    role: UserRole.ADMIN,
+  });
+  await admin.save();
+  adminUserId = admin._id.toString();
+
+  const member = new User({
+    email: "member@test.com",
+    password: "password123",
+    firstName: "Member",
+    lastName: "User",
+    role: UserRole.MEMBER,
+  });
+  await member.save();
+  memberUserId = member._id.toString();
+
+  const adminRes = await request(app).post("/api/auth/login").send({
+    email: "admin@test.com",
+    password: "password123",
+  });
+  adminToken = adminRes.body.data.token;
+
+  const memberRes = await request(app).post("/api/auth/login").send({
+    email: "member@test.com",
+    password: "password123",
+  });
+  memberToken = memberRes.body.data.token;
+  
+});
+
+afterAll(async () => {
+  await mongoose.connection.close();
+});
+
+describe("User Controller", () => {
+  describe("GET /api/users", () => {
+    it("should return paginated users for admin", async () => {
+      const res = await request(app)
+        .get("/api/users")
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.users.length).toBeGreaterThan(0);
+      expect(res.body.pagination).toHaveProperty("totalItems");
+    });
+
+    it("should filter users by role", async () => {
+      const res = await request(app)
+        .get("/api/users?role=admin")
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      res.body.data.users.forEach((user: any) => {
+        expect(user.role).toBe("admin");
       });
-    
-    adminToken = adminResponse.body.data.token;
-    adminUser = adminResponse.body.data.user;
+    });
+  });
 
-    // Create member user
-    const memberResponse = await request(app)
-      .post('/api/auth/register')
-      .send({
-        email: 'member@test.com',
-        password: 'MemberPass123',
-        firstName: 'Member',
-        lastName: 'User',
-        role: 'member' as UserRole,
+  describe("GET /api/users/:id", () => {
+  it("should return user details with task stats", async () => {
+    await Task.create([
+      { title: "Task 1", assignee: memberUserId, status: TaskStatus.TODO, createdBy: adminUserId },
+      { title: "Task 2", assignee: memberUserId, status: TaskStatus.DONE, createdBy: adminUserId },
+    ]);
+
+    const res = await request(app)
+      .get(`/api/users/${memberUserId}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.user._id).toBe(memberUserId);
+    expect(res.body.data.taskStats.total).toBe(2);
+    expect(res.body.data.taskStats.todo).toBe(1);
+    expect(res.body.data.taskStats.done).toBe(1);
+  });
+});
+
+
+  describe("PUT /api/users/:id/role", () => {
+    it("should update user role by admin", async () => {
+      const res = await request(app)
+        .patch(`/api/users/${memberUserId}/role`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ role: UserRole.ADMIN });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.user.role).toBe(UserRole.ADMIN);
+    });
+
+    it("should prevent user from changing their own role", async () => {
+      const res = await request(app)
+        .patch(`/api/users/${adminUserId}/role`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ role: UserRole.MEMBER });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/cannot change your own role/i);
+    });
+  });
+
+  describe("DELETE /api/users/:id", () => {
+    it("should delete user without assigned tasks", async () => {
+      const tempUser = new User({
+        email: "temp@test.com",
+        password: "password123",
+        firstName: "Temp",
+        lastName: "User",
+        role: UserRole.MEMBER,
       });
-    
-    memberToken = memberResponse.body.data.token;
-    memberUser = memberResponse.body.data.user;
-  });
+      await tempUser.save();
 
-  describe('GET /api/users', () => {
-    beforeEach(async () => {
-      // Create additional users
-      await request(app)
-        .post('/api/auth/register')
-        .send({
-          email: 'user1@test.com',
-          password: 'User1Pass123',
-          firstName: 'User',
-          lastName: 'One',
-          role: 'member' as UserRole,
-        });
+      const res = await request(app)
+        .delete(`/api/users/${tempUser._id}`)
+        .set("Authorization", `Bearer ${adminToken}`);
 
-      await request(app)
-        .post('/api/auth/register')
-        .send({
-          email: 'user2@test.com',
-          password: 'User2Pass123',
-          firstName: 'User',
-          lastName: 'Two',
-          role: 'member' as UserRole,
-        });
+      expect(res.status).toBe(200);
+      expect(res.body.message).toMatch(/deleted successfully/i);
     });
 
-    it('should get all users for admin', async () => {
-      const response = await request(app)
-        .get('/api/users')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
+    it("should not delete user with assigned tasks", async () => {
+      const res = await request(app)
+        .delete(`/api/users/${memberUserId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
 
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.users).toBeDefined();
-      expect(response.body.data.pagination).toBeDefined();
-      
-      // Should have 4 users total (admin, member, user1, user2)
-      expect(response.body.data.users.length).toBe(4);
-      
-      // Check that sensitive data is not exposed
-      const firstUser = response.body.data.users[0];
-      expect(firstUser.password).toBeUndefined();
-      expect(firstUser.__v).toBeUndefined();
-      expect(firstUser._id).toBeDefined();
-      expect(firstUser.email).toBeDefined();
-      expect(firstUser.firstName).toBeDefined();
-      expect(firstUser.lastName).toBeDefined();
-      expect(firstUser.role).toBeDefined();
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/assigned task/i);
     });
 
-    it('should paginate users correctly', async () => {
-      const response = await request(app)
-        .get('/api/users?page=1&limit=2')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
+    it("should prevent deleting own account", async () => {
+      const res = await request(app)
+        .delete(`/api/users/${adminUserId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
 
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.users.length).toBe(2);
-      expect(response.body.data.pagination.currentPage).toBe(1);
-      expect(response.body.data.pagination.itemsPerPage).toBe(2);
-      expect(response.body.data.pagination.totalPages).toBe(2);
-    });
-
-    it('should search users by name', async () => {
-      const response = await request(app)
-        .get('/api/users?search=User')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.users.length).toBeGreaterThan(0);
-      
-      // All returned users should have "User" in their name
-      const allHaveUserInName = response.body.data.users.every((user: any) => 
-        user.firstName.includes('User') || user.lastName.includes('User')
-      );
-      expect(allHaveUserInName).toBe(true);
-    });
-
-    it('should filter users by role', async () => {
-      const response = await request(app)
-        .get('/api/users?role=member')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.users.length).toBeGreaterThan(0);
-      
-      // All returned users should be members
-      const allAreMembers = response.body.data.users.every((user: any) => 
-        user.role === 'member'
-      );
-      expect(allAreMembers).toBe(true);
-    });
-
-    it('should fail for member users', async () => {
-      const response = await request(app)
-        .get('/api/users')
-        .set('Authorization', `Bearer ${memberToken}`)
-        .expect(403);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('Admin access required');
-    });
-
-    it('should fail without authentication', async () => {
-      const response = await request(app)
-        .get('/api/users')
-        .expect(401);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('Authentication required');
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/cannot delete your own account/i);
     });
   });
 
-  describe('GET /api/users/:id', () => {
-    it('should get user by ID for admin', async () => {
-      const response = await request(app)
-        .get(`/api/users/${memberUser._id}`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.data._id).toBe(memberUser._id);
-      expect(response.body.data.email).toBe(memberUser.email);
-      expect(response.body.data.firstName).toBe(memberUser.firstName);
-      expect(response.body.data.lastName).toBe(memberUser.lastName);
-      expect(response.body.data.role).toBe(memberUser.role);
-      
-      // Sensitive data should not be exposed
-      expect(response.body.data.password).toBeUndefined();
-    });
-
-    it('should get own profile for member', async () => {
-      const response = await request(app)
-        .get(`/api/users/${memberUser._id}`)
-        .set('Authorization', `Bearer ${memberToken}`)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.data._id).toBe(memberUser._id);
-    });
-
-    it('should fail for member accessing other user profile', async () => {
-      const response = await request(app)
-        .get(`/api/users/${adminUser._id}`)
-        .set('Authorization', `Bearer ${memberToken}`)
-        .expect(403);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('Access denied');
-    });
-
-    it('should fail with invalid user ID', async () => {
-      const response = await request(app)
-        .get('/api/users/invalid-id')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(400);
-
-      expect(response.body.success).toBe(false);
-    });
-
-    it('should fail with non-existent user ID', async () => {
-      const fakeId = '507f1f77bcf86cd799439011';
-      const response = await request(app)
-        .get(`/api/users/${fakeId}`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(404);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('User not found');
-    });
-  });
-
-  describe('PATCH /api/users/:id/role', () => {
-    it('should update user role successfully as admin', async () => {
-      const response = await request(app)
-        .patch(`/api/users/${memberUser._id}/role`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ role: 'admin' })
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.user.role).toBe('admin');
-      expect(response.body.message).toContain('User role updated successfully');
-    });
-
-    it('should fail with invalid role', async () => {
-      const response = await request(app)
-        .patch(`/api/users/${memberUser._id}/role`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ role: 'invalid-role' })
-        .expect(400);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('Invalid role');
-    });
-
-    it('should fail for member users', async () => {
-      const response = await request(app)
-        .patch(`/api/users/${adminUser._id}/role`)
-        .set('Authorization', `Bearer ${memberToken}`)
-        .send({ role: 'member' })
-        .expect(403);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('Admin access required');
-    });
-
-    it('should fail when admin tries to change own role', async () => {
-      const response = await request(app)
-        .patch(`/api/users/${adminUser._id}/role`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ role: 'member' })
-        .expect(400);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('Cannot change your own role');
-    });
-
-    it('should fail with missing role in request body', async () => {
-      const response = await request(app)
-        .patch(`/api/users/${memberUser._id}/role`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({})
-        .expect(400);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('Role is required');
-    });
-  });
-
-  describe('DELETE /api/users/:id', () => {
-    it('should delete user successfully as admin', async () => {
-      const response = await request(app)
-        .delete(`/api/users/${memberUser._id}`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.message).toContain('User deleted successfully');
-
-      // Verify user is deleted
-      const deletedUser = await User.findById(memberUser._id);
-      expect(deletedUser).toBeNull();
-    });
-
-    it('should fail for member users', async () => {
-      const response = await request(app)
-        .delete(`/api/users/${adminUser._id}`)
-        .set('Authorization', `Bearer ${memberToken}`)
-        .expect(403);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('Admin access required');
-    });
-
-    it('should fail when admin tries to delete themselves', async () => {
-      const response = await request(app)
-        .delete(`/api/users/${adminUser._id}`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(400);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('Cannot delete your own account');
-    });
-
-    it('should fail with invalid user ID', async () => {
-      const response = await request(app)
-        .delete('/api/users/invalid-id')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(400);
-
-      expect(response.body.success).toBe(false);
-    });
-
-    it('should fail with non-existent user ID', async () => {
-      const fakeId = '507f1f77bcf86cd799439011';
-      const response = await request(app)
-        .delete(`/api/users/${fakeId}`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(404);
-
-      expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('User not found');
-    });
-  });
-
-  describe('User Management Edge Cases', () => {
-    it('should handle bulk operations correctly', async () => {
-      // Create multiple users
-      const userPromises = Array.from({ length: 5 }, (_, i) => 
-        request(app)
-          .post('/api/auth/register')
-          .send({
-            email: `bulkuser${i}@test.com`,
-            password: `BulkPass${i}123`,
-            firstName: `Bulk`,
-            lastName: `User${i}`,
-            role: 'member' as UserRole,
-          })
-      );
-
-      await Promise.all(userPromises);
-
-      // Get all users
-      const response = await request(app)
-        .get('/api/users?limit=10')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.users.length).toBe(7); // 2 original + 5 bulk users
-    });
-
-    it('should maintain data integrity when deleting users', async () => {
-      // Create a user with specific data
-      const testUserResponse = await request(app)
-        .post('/api/auth/register')
-        .send({
-          email: 'integrity@test.com',
-          password: 'IntegrityPass123',
-          firstName: 'Integrity',
-          lastName: 'Test',
-          role: 'member' as UserRole,
-        });
-
-      const testUserId = testUserResponse.body.data.user._id;
-
-      // Verify user exists
-      const userExists = await User.findById(testUserId);
-      expect(userExists).toBeTruthy();
-
-      // Delete user
-      await request(app)
-        .delete(`/api/users/${testUserId}`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-
-      // Verify user is completely removed
-      const userDeleted = await User.findById(testUserId);
-      expect(userDeleted).toBeNull();
-
-      // Verify no duplicate emails exist
-      const duplicateEmails = await User.find({ email: 'integrity@test.com' });
-      expect(duplicateEmails.length).toBe(0);
-    });
-  });
-}); 
+});

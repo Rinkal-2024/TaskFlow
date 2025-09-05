@@ -62,7 +62,6 @@ export const DashboardPage = () => {
     tasksByPriority: {}
   }
 
-  // Role-based stat cards
   const getStatCards = () => {
     if (user?.role === 'admin') {
       return [
@@ -100,7 +99,6 @@ export const DashboardPage = () => {
         },
       ]
     } else {
-      // Member view - personal task focus
       const completionRate = userStats?.data?.myTasks > 0 
         ? Math.round((userStats.data.completedTasks / userStats.data.myTasks) * 100) 
         : 0;
@@ -215,7 +213,6 @@ export const DashboardPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Section */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -244,7 +241,6 @@ export const DashboardPage = () => {
         </button>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat) => (
           <div
@@ -276,7 +272,6 @@ export const DashboardPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Priority Breakdown */}
         <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-gray-900">
@@ -309,7 +304,6 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Quick Actions */}
         <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-gray-900">Quick Actions</h3>
@@ -337,9 +331,7 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Role-specific content */}
         {user?.role === 'admin' ? (
-          /* Admin: System Activity */
           <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900">System Activity</h3>
@@ -372,7 +364,6 @@ export const DashboardPage = () => {
             )}
           </div>
         ) : (
-          /* Member: Personal Progress */
           <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900">My Progress</h3>
@@ -410,7 +401,6 @@ export const DashboardPage = () => {
         )}
       </div>
 
-      {/* Recent Tasks */}
       <div className="bg-white rounded-lg shadow border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-lg font-medium text-gray-900">
@@ -491,7 +481,6 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Create Task Modal */}
       {showCreateModal && (
         <TaskModal
           mode="create"

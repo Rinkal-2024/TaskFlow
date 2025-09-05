@@ -27,7 +27,6 @@ export const register = asyncHandler(
 
 export const login = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
-    console.log("login");
     const { email, password } = req.body;
 
     console.log(req.body);
@@ -38,7 +37,6 @@ export const login = asyncHandler(
     }
 
     const isMatch = await user.comparePassword(password);
-    console.log(isMatch);
     if (!isMatch) {
       throw new AppError("Invalid credentials", 401);
     }
@@ -106,7 +104,6 @@ export const changePassword = asyncHandler(
 
     const { currentPassword, newPassword, confirmPassword } = req.body;
 
-    // Additional validation to ensure confirmPassword matches
     if (newPassword !== confirmPassword) {
       throw new AppError(
         "Password confirmation does not match new password",
